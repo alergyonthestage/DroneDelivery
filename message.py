@@ -4,6 +4,8 @@ CLOSE_CONN = "CLOSE_CONN"
 LIST_DRONES = "LIST_DRONES"
 DELIVER = "DELIVER"
 EXCEPTION = "EXCEPTION"
+AVAILABLE = "AVAILABLE"
+BUSY = "BUSY"
 
 class Message:
     def __init__(self, cmd, data):

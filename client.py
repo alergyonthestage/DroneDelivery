@@ -27,8 +27,11 @@ class Client:
         
     def connect(self, serverName, serverPort):
         print("Creating socket and request connection to {} TCP server...".format(serverName))
-        self.clientSocket = socket(AF_INET, SOCK_STREAM)
-        self.clientSocket.connect((serverName, serverPort))
+        try:
+            self.clientSocket = socket(AF_INET, SOCK_STREAM)
+            self.clientSocket.connect((serverName, serverPort))
+        except Exception as e:
+            print("Exception!", e)
         print("Waiting the server to confirm the connection...")
         replyCmd, replyData = self._receiveMessage()
         if (replyCmd == START_CONN):

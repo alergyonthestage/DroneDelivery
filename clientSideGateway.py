@@ -21,6 +21,7 @@ class GatewayTCP:
         try:
             msgBytes = Message(cmd, data).getBytes()
             connSocket.send(msgBytes)
+            print("Message: [", cmd, " - ", data, "] sent.")
         except Exception as e:
             print("Exception!", e)
             

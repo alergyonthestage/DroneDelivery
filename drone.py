@@ -1,7 +1,5 @@
 from socket import socket, AF_INET, SOCK_DGRAM
-
-BUSY = 0
-AVAILABLE = 1
+from message import Message, AVAILABLE, BUSY, DELIVER
 
 class Drone:
     
