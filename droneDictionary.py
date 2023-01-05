@@ -1,4 +1,4 @@
-from datetime import datetime 
+import datetime
 
 class DroneDictionary:
     availableDrones = {}
@@ -50,9 +50,11 @@ class DroneDictionary:
             return False
         else:
             if(self.isDroneAvailable(droneIP)):
-                addTime = self.getAvailableDroneInfos(droneIP).get('addTime')
-                self.availableDrones[droneIP] = {'name' : droneName, 'port' : dronePort, 'addTime' : addTime}
+                drone = self.getAvailableDroneInfos(droneIP)
+                drone.update({'name' : droneName, 'port' : dronePort})
+                self.availableDrones.update({droneIP : drone})
             if(self.isDroneBusy(droneIP)):
-                addTime = self.getBusyDroneInfos(droneIP).get('addTime')
-                self.busyDrones[droneIP] = {'name' : droneName, 'port' : dronePort, 'addTime' : addTime}
+                drone = self.getBusyDroneInfos(droneIP)
+                drone.update({'name' : droneName, 'port' : dronePort})
+                self.busyDrones.update({droneIP : drone})
             return True
