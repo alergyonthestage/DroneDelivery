@@ -1,45 +1,28 @@
-import datetime
+from droneSideGateway import DroneSideGateway
+from clientSideGateway import ClientSideGateway, AnotherClientConnected
+from deliveriesRegistry import DeliveriesRegisrty
 
-class DeliverHandler:
-    REQUESTED = 'REQUESTED'
-    DELIVERING = 'DELIVERING' 
-    DELIVERED = 'DELIVERED'
-    CANCELLED = 'CANCELLED'
-    pendingDeliveries = {}
-    deliveryHistory = {}
+class Gateway:
+    clientConnected = False
+    deliveriesRegistry = DeliveriesRegisrty()
     
-    def addPendingDelivery(self, droneIP, shippingAddress):
-        if(self.pendingDeliveries.has_key(droneIP)):
-            return False
-        timestamp = datetime.now()
-        self.pendingDeliveries[droneIP] = {'status' : self.REQUESTED, 'shippingAddress' : shippingAddress, 'requested' : timestamp}
-        return True
+    def __init__(self, droneGatewayAddress, clientGatewayAddress):
+        self.droneSideGateway = DroneSideGateway(*droneGatewayAddress, self.deliveriesRegistry)
+        self.clientSideGateway = ClientSideGateway(*clientGatewayAddress, self.deliveriesRegistry, self.droneSideGateway.getDroneDictionary())
         
-    def delivering(self, droneIP):
-        if(self.pendingDeliveries.has_key(droneIP)):
-            timestamp = datetime.now()
-            delivery = self.pendingDeliveries.get(droneIP)
-            delivery.update({'status' : self.DELIVERING, 'delivering' : timestamp})
-            self.pendingDeliveries.update({droneIP : delivery})
-            return True
-        return False
+    def isClientConnected(self):
+        return self.clientConnected
     
-    def delivered(self, droneIP):
-        if(self.pendingDeliveries.has_key(droneIP)):
-            timestamp = datetime.now()
-            delivery = self.pendingDeliveries.pop(droneIP)
-            delivery.update({'status' : self.DELIVERED})
-            self.deliverHistory.update({(droneIP, timestamp) : delivery})
-            return True
-        return False
-   
-    def cancelled(self, droneIP):
-        if(self.pendingDeliveries.has_key(droneIP)):
-            timestamp = datetime.now()
-            delivery = self.pendingDeliveries.pop(droneIP)
-            delivery.update({'status' : self.CANCELLED})
-            self.deliverHistory.update({(droneIP, timestamp) : delivery})
-            return True
-        return False
+    def connectClient(self):
+        try:
+            self.clientSideGateway.handleClient()
+        except AnotherClientConnected as e:
+            print("Client Not Connected!", e)
 
-    
+droneGatewayAddress = ('', 50000)
+clientGatewayAddress = ('', 51000)
+gateway = Gateway(droneGatewayAddress, clientGatewayAddress)
+
+while True:
+    if(not gateway.isClientConnected()):
+        gateway.connectClient()

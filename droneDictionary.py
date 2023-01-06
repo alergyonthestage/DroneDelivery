@@ -4,6 +4,9 @@ class DroneDictionary:
     availableDrones = {}
     busyDrones = {}
     
+    def getAvailableDrones(self):
+        return self.availableDrones.items()
+    
     def getAvailableDroneInfos(self, droneIP):
         return self.availableDrones.get(droneIP)
     

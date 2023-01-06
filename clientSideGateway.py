@@ -1,63 +1,92 @@
 from socket import socket, AF_INET, SOCK_STREAM
-from message import Message, START_CONN, CLOSE_CONN, EXCEPTION, LIST_DRONES
-import threading
+from message import Message, START_CONN, CLOSE_CONN, EXCEPTION, LIST_DRONES, DELIVER
+from threading import Thread
 
 #handshake port
 handshakePort = 12000
 
-class GatewayTCP:
+class ClientHandler(Thread):
     mantainConnection = True
     
-    def __init__(self, serverAddress, serverPort):
-        try:
-           self.handshakeSocket = socket(AF_INET, SOCK_STREAM)
-           self.handshakeSocket.bind((serverAddress, serverPort))
-           self.handshakeSocket.listen(1)
-           print("Socket created, all requests will be added to queue. Call acceptClient() method!")
-        except Exception as e:
-            print("Exception!", e)
-            
-    def _sendMessage(self, cmd, data, connSocket):
+    def __init__(self, connectionSocket, clientAccepted, deliveriesRegister, droneDictionary):
+        if(clientAccepted):
+            super().__init__()
+            self.connectionSocket = connectionSocket
+            self._sendMessage(START_CONN, '', connectionSocket)
+            print("Connection Accepted")
+            self.deliveriesRegister = deliveriesRegister
+        else:
+            self._sendMessage(CLOSE_CONN, '', connectionSocket)
+            print("Connection Denied!")
+            connectionSocket.close()
+    
+    def _sendMessage(self, cmd, data):
         try:
             msgBytes = Message(cmd, data).getBytes()
-            connSocket.send(msgBytes)
+            self.connectionSocket.send(msgBytes)
             print("Message: [", cmd, " - ", data, "] sent.")
         except Exception as e:
             print("Exception!", e)
             
-    def _receiveMessage(self, connSocket):
+    def _receiveMessage(self):
         try:
-            msg = Message.fromBytes(connSocket.recv(2048))
-            print("New message recived!")
+            msg = Message.fromBytes(self.connectionSocket.recv(2048))
+            print("New message recived: ", msg.getCmd(), " - ", msg.getData())
             return msg.getCmd(), msg.getData()
         except Exception as e:
             print("Exception!", e)
             
-    def _canDisconnectClient(self, connectionSocket):
+    def _canDisconnectClient(self):
         return True
             
-    def _disconnectClient(self, connectionSocket):
-        print("Try to disconnect client: ", connectionSocket.getpeername())
-        if (self._canDisconnectClient(connectionSocket)):
-            self._sendMessage(CLOSE_CONN, '', connectionSocket)
-            connectionSocket.close()
+    def _disconnectClient(self):
+        print("Try to disconnect client: ", self.connectionSocket.getpeername())
+        if (self._canDisconnectClient()):
+            self._sendMessage(CLOSE_CONN, '')
+            self.connectionSocket.close()
             self.mantainConnection = False
         else:
-            self._sendMessage(EXCEPTION, 'Cannot disconnect client!', connectionSocket)
+            self._sendMessage(EXCEPTION, 'Cannot disconnect client!')
    
+    def getStringDronesList(self):
+        stringList = ""
+        dronesList = self.droneDictionary.getAvailableDrones()
+        for drone in dronesList:
+            stringList += "DroneIP: " + drone[0] + "\t\t" + drone[1] + "\n"
+    
     def _sendDronesList(self, socket):
-        #se ci sono droni connessi invia, altrimenti exception
-        self._sendMessage(LIST_DRONES, '1,2,3,4,5,6', socket)
+        self._sendMessage(LIST_DRONES, self.getStringDronesList(), socket)
         
-    def _handleClient(self, connectionSocket):
+    def _deliver(self, msgData):
+        droneIP, shippingAdderss = msgData.split("_")
+        self.deliveriesRegister.requestDelivery(droneIP, shippingAdderss)
+        
+    def run(self):
         while self.mantainConnection:
-            msgCmd, msgData = self._receiveMessage(connectionSocket)
-            print(msgCmd, " - ", msgData)
-            if (msgCmd == CLOSE_CONN):
-                self._disconnectClient(connectionSocket)
-            elif (msgCmd == LIST_DRONES):
-                self._sendDronesList(connectionSocket)
-        self.mantainConnection = True
+            msgCmd, msgData = self._receiveMessage()
+            if(msgCmd == CLOSE_CONN):
+                self._disconnectClient()
+            elif(msgCmd == LIST_DRONES):
+                self._sendDronesList()
+            elif(msgCmd == DELIVER):
+                self._deliver(msgData)
+
+class AnotherClientConnected(Exception):
+    pass
+
+class ClientSideGateway:
+    clientHandler = None
+    
+    def __init__(self, serverAddress, serverPort, deliveriesRegister, droneDictionary):
+        self.deliveriesRegister = deliveriesRegister
+        self.droneDictionary = droneDictionary
+        try:
+            self.handshakeSocket = socket(AF_INET, SOCK_STREAM)
+            self.handshakeSocket.bind((serverAddress, serverPort))
+            self.handshakeSocket.listen(1)
+            print("Handshake socket created, all requests will be added to queue.")
+        except Exception as e:
+            print("Exception!", e) 
             
     def _confirmClientConnection(self, address):
         print("Il client {} sta richiedendo la connessione.".format(address))
@@ -66,20 +95,15 @@ class GatewayTCP:
             return True
         else:
             return False
-        
-    def acceptClient(self):
-        print("Waiting for a TCP client request!")
-        connectionSocket, address = self.handshakeSocket.accept()
-        if self._confirmClientConnection(address):
-            self._sendMessage(START_CONN, '', connectionSocket)
-            print("Connection Accepted")
-            newThread = threading.Thread(target = self._handleClient, args = (connectionSocket, ))
-            newThread.start()
-        else:
-            self._sendMessage(CLOSE_CONN, '', connectionSocket)
-            print("Connection Denied!")
-            connectionSocket.close()
 
-gateway = GatewayTCP('', handshakePort)
-gateway.acceptClient()
-gateway.handshakeSocket.close()
+    def handleClient(self):
+        if(self.clientHandler != None):
+            raise AnotherClientConnected('The gateway can only handle one client at a time.')
+        else:
+            print("Waiting for a TCP client request!")
+            connectionSocket, address = self.handshakeSocket.accept()
+            confirmed = self._confirmClientConnection(address)
+            self.clientHandler = ClientHandler(connectionSocket, confirmed, self.deliveriesRegister, self.droneDictionary)
+            return confirmed
+
+            

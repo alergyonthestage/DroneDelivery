@@ -6,9 +6,24 @@ from threading import Thread
 import time
 
 SOCKET_TIMEOUT_SEC = 2
+RETRANSMIT_TIMEOUT_SEC = 4
+
+class RetransmitTimer(Thread):
+    def __init__(self, msgToQueue, timeout, toSendQueue):
+        self.msgToQueue = msgToQueue
+        self.timeout = timeout
+        self.toSendQueue = toSendQueue
+    
+    def run(self):
+        self.startSending = time.time()
+        while ((time.time()-self.startSending < self.timeout) and (not self.stopped)):
+            pass
+        if(not self.stopped):
+            self.toSendQueue.put(self.msgToQueue)
 
 class SocketOperator(Thread):    
     communicate = True
+    deliverMsgTimers = {}
     
     def __init__(self, udpSocket, recivedMsgsQueue, toSendQueue):
         super().__init__()
@@ -18,6 +33,8 @@ class SocketOperator(Thread):
         
     def _sendMsgToDrone(self, cmd, data, droneAddress):
         try:
+            if(cmd == DELIVER):
+                self.deliverMsgTimers[droneAddress[0]] = RetransmitTimer((cmd, data, droneAddress), RETRANSMIT_TIMEOUT_SEC, self.toSendQueue)
             self.udpSocket.sendto(Message(cmd, data).getBytes(), droneAddress)
             print("Message: [", cmd, " - ", data, "] sent to ", droneAddress)
         except Exception as e:
@@ -47,10 +64,11 @@ class SocketOperator(Thread):
 class DroneMsgsHandler(Thread):
     handleMsgs = True
     
-    def __init__(self, recivedMsgsQueue, toSendQueue, droneDictionary):
+    def __init__(self, recivedMsgsQueue, toSendQueue, droneDictionary, deliveriesRegister):
         self.recivedMsgsQueue = recivedMsgsQueue
         self.toSendQueue = toSendQueue
         self.droneDictionary = droneDictionary
+        self.deliveriesRegister = deliveriesRegister
         
     def _availableDrone(self, droneIP, dronePort, droneName):
         if(self.droneDictionary.isDroneUnavailable(droneIP)):
@@ -71,14 +89,23 @@ class DroneMsgsHandler(Thread):
             self.toSendQueue.put((UNAVAILABLE, '', (droneIP, dronePort)))
     
     def _busyDrone(self, droneIP, dronePort):
-        pass
-        #if is for non confirmed delivery (= original msg)
-            #confirm delivery to drone
-            #confirm delivery to client
-        #elif is for already confirmed delivery (= retransmit)
-            #confirm delivery to drone
-        #else if delivery does not exists 
-            #send available msg to drone (NAK = annulla consegna)
+        if(self.deliveriesRegister.hasPendingDelivery(droneIP)):
+            if(self.droneDictionary.isDroneAvailable(droneIP)):
+                self.droneDictionary.moveToBusyDrones(droneIP)
+                self.toSendQueue.put((BUSY, '', (droneIP, dronePort)))
+                self.deliveriesRegister.delivering(droneIP)    
+            elif(self.droneDictionary.isDroneBusy(droneIP)):
+                self.toSendQueue.put((BUSY, '', (droneIP, dronePort)))
+        else:
+            self.toSendQueue.put((AVAILABLE, '', (droneIP, dronePort)))
+    
+    def _requestDelivery(self):
+        droneIP, request = self.deliveriesRegister.getNextRequest()
+        if(self.droneDictionary.isDroneAvailable(droneIP)):
+            dronePort = self.droneDictionary.getAvailableDroneInfos(droneIP)
+            self.toSendQueue.put((DELIVER, request.get('shippingAddress'), (droneIP, dronePort)))
+        else:
+            self.deliveriesRegister.cancelled(droneIP)
     
     def run(self):
         while self.handleMsgs:
@@ -91,35 +118,23 @@ class DroneMsgsHandler(Thread):
                     self._unavailableDrone(addr[0], addr[1])
                 elif(cmd == BUSY):
                     pass
+            if self.deliveriesRegister.hasNewRequests():
+                self._requestDelivery()
 
-class GatewayUDP:
+class DroneSideGateway:
     recivedMsgsQueue = Queue(0)
     toSendQueue = Queue(0)
     
-    def __init__(self, serverAddress, serverPort):
+    def __init__(self, serverAddress, serverPort, deliveriesRegister):
         self.serverSocket = socket(AF_INET, SOCK_DGRAM)
         self.serverSocket.bind((serverAddress, serverPort))
         self.serverSocket.settimeout(SOCKET_TIMEOUT_SEC)
         self.droneDictionary = DroneDictionary()
+        self.deliveriesRegister = deliveriesRegister
         self.socketOperator = SocketOperator(self.serverSocket, self.recivedMsgsQueue, self.toSendQueue)
         self.socketOperator.start()
-        self.droneMsgsHandler = DroneMsgsHandler(self.recivedMsgsQueue, self.toSendQueue, self.droneDictionary)
+        self.droneMsgsHandler = DroneMsgsHandler(self.recivedMsgsQueue, self.toSendQueue, self.droneDictionary, self.deliveriesRegister)
         self.droneMsgsHandler.start()
-                
-    """    def _waitDeliverAck():
-        return 1
-            
-   def askDeliver(self, shippingAddress, droneIP):
-        drone = self.droneDictionary.getAvailableDroneInfos()
-        if(drone != None):
-            dronePort = (droneIP, drone.get('port'))
-            self.sendMsgToDrone(DELIVER, shippingAddress, (droneIP, dronePort))
-            print("Waiting drone to accept delivery...")
-            
-        else:
-            print("Drone {} not available!".format(droneIP))"""
- 
-
- 
-
-                    
+        
+    def getDroneDictionary(self):
+        return self.droneDictionary
