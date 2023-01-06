@@ -3,26 +3,22 @@ from clientSideGateway import ClientSideGateway, AnotherClientConnected
 from deliveriesRegistry import DeliveriesRegisrty
 
 class Gateway:
-    clientConnected = False
     deliveriesRegistry = DeliveriesRegisrty()
     
     def __init__(self, droneGatewayAddress, clientGatewayAddress):
         self.droneSideGateway = DroneSideGateway(*droneGatewayAddress, self.deliveriesRegistry)
         self.clientSideGateway = ClientSideGateway(*clientGatewayAddress, self.deliveriesRegistry, self.droneSideGateway.getDroneDictionary())
-        
-    def isClientConnected(self):
-        return self.clientConnected
     
-    def connectClient(self):
+    def connectAndHandleClient(self):
         try:
             self.clientSideGateway.handleClient()
         except AnotherClientConnected as e:
-            print("Client Not Connected!", e)
+            print("Cannot connect a new Client!", e)
 
 droneGatewayAddress = ('', 50000)
 clientGatewayAddress = ('', 51000)
 gateway = Gateway(droneGatewayAddress, clientGatewayAddress)
 
 while True:
-    if(not gateway.isClientConnected()):
-        gateway.connectClient()
+    gateway.connectAndHandleClient()
+    print("Client Disconnected! Wait for another TCP client request...")

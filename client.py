@@ -1,5 +1,5 @@
 from socket import socket, AF_INET,SOCK_STREAM
-from message import Message, START_CONN, CLOSE_CONN, EXCEPTION, LIST_DRONES
+from message import Message, START_CONN, CLOSE_CONN, EXCEPTION, LIST_DRONES, DELIVER
 
 class Client:
     def _sendMessage(self, cmd, data):
@@ -74,7 +74,11 @@ class Client:
             print("Unexpected command recived! Packet discarted.")
             return False
         
+    def deliver(self, shippingAddress, droneIP):
+        msgData = droneIP + "_" + shippingAddress
+        self._sendMessage(DELIVER, msgData)      
+        
 client = Client()
-client.connect('', 12000)
+client.connect('', 51000)
 client.getAvailableDrones()
 client.closeConnection()

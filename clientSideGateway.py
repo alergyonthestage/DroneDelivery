@@ -9,14 +9,15 @@ class ClientHandler(Thread):
     mantainConnection = True
     
     def __init__(self, connectionSocket, clientAccepted, deliveriesRegister, droneDictionary):
-        if(clientAccepted):
-            super().__init__()
+        super().__init__()
+        if(clientAccepted): 
             self.connectionSocket = connectionSocket
-            self._sendMessage(START_CONN, '', connectionSocket)
+            self._sendMessage(START_CONN, '')
             print("Connection Accepted")
             self.deliveriesRegister = deliveriesRegister
+            self.droneDictionary = droneDictionary
         else:
-            self._sendMessage(CLOSE_CONN, '', connectionSocket)
+            self._sendMessage(CLOSE_CONN, '')
             print("Connection Denied!")
             connectionSocket.close()
     
@@ -43,8 +44,8 @@ class ClientHandler(Thread):
         print("Try to disconnect client: ", self.connectionSocket.getpeername())
         if (self._canDisconnectClient()):
             self._sendMessage(CLOSE_CONN, '')
-            self.connectionSocket.close()
             self.mantainConnection = False
+            self.connectionSocket.close()
         else:
             self._sendMessage(EXCEPTION, 'Cannot disconnect client!')
    
@@ -54,8 +55,11 @@ class ClientHandler(Thread):
         for drone in dronesList:
             stringList += "DroneIP: " + drone[0] + "\t\t" + drone[1] + "\n"
     
-    def _sendDronesList(self, socket):
-        self._sendMessage(LIST_DRONES, self.getStringDronesList(), socket)
+    def _sendDronesList(self):
+        if(self.droneDictionary.hasAvailableDrones()):
+            self._sendMessage(LIST_DRONES, self.getStringDronesList())
+        else:
+            self._sendMessage(EXCEPTION, "There's not any available drone.")
         
     def _deliver(self, msgData):
         droneIP, shippingAdderss = msgData.split("_")
@@ -104,6 +108,6 @@ class ClientSideGateway:
             connectionSocket, address = self.handshakeSocket.accept()
             confirmed = self._confirmClientConnection(address)
             self.clientHandler = ClientHandler(connectionSocket, confirmed, self.deliveriesRegister, self.droneDictionary)
-            return confirmed
-
-            
+            self.clientHandler.start()
+            self.clientHandler.join()
+            self.clientHandler = None
