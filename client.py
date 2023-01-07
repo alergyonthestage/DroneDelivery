@@ -1,38 +1,43 @@
 from socket import socket, AF_INET,SOCK_STREAM
 from message import Message, START_CONN, CLOSE_CONN, EXCEPTION, LIST_DRONES, DELIVER
 
+DEBUG = False
+
 class Client:
     def _sendMessage(self, cmd, data):
+        if(DEBUG):
+            print("DEBUG - Sending MSG to gateway...")
         try:
             msgBytes = Message(cmd, data).getBytes()
             self.clientSocket.send(msgBytes)
-            print("Message: [", cmd, " - ", data, "] sent.")
+            if(DEBUG):
+                print("DEBUG - MSG: '", cmd, " - ", data, "' sent to gateway")
         except Exception as e:
             print("Cannot send Message: [", cmd, " - ", data, "]. Exception: ", e)
     
     def _receiveMessage(self):
-        #TO-DO stampa from/to
+        if(DEBUG):
+            print("DEBUG - Reciving MSG from gateway...")
         try:
-            print("Waiting to receive a message...")
             msgBytes = self.clientSocket.recv(2048)
-            print("Message received! Bytes:", msgBytes)
             msg = Message.fromBytes(msgBytes)
+            if(DEBUG):
+                print("DEBUG - MSG: '", msg.getCmd(), " - ", msg.getData(), "' recived from gateway")
             return msg.getCmd(), msg.getData()
         except Exception as e:
-            print("Exception!", e)
+            print("Cannot recive Messages. Exception: ", e)
             
     def _emergencyCloseConnection(self):
         #TO-DO implement try send CLOSE_CONN and then close, else if already disconnected close socket
         self.clientSocket.close()
         
     def connectToGateway(self, serverName, serverPort):
-        print("Creating socket and request connection to {} TCP server...".format(serverName))
         try:
             self.clientSocket = socket(AF_INET, SOCK_STREAM)
             self.clientSocket.connect((serverName, serverPort))
         except Exception as e:
-            print("Exception!", e)
-        print("Waiting the server to confirm the connection...")
+            print("Cannot connect to gateway. Exception: ", e)
+        print("Waiting the gateway to accept the connection...")
         replyCmd, replyData = self._receiveMessage()
         if (replyCmd == START_CONN):
             print("Connected!")
@@ -47,7 +52,7 @@ class Client:
             return False
         
     def closeConnection(self):
-        print("Asking the server to close the connection...")
+        print("Asking the gateway to close the connection...")
         self._sendMessage(CLOSE_CONN, '')
         replyCmd, replyData = self._receiveMessage()
         if (replyCmd == CLOSE_CONN):
@@ -66,9 +71,9 @@ class Client:
         self._sendMessage(LIST_DRONES, '')
         replyCmd, replyData = self._receiveMessage()
         if (replyCmd == LIST_DRONES):
-            print(replyData)
+            print("Available drones list: \n" + replyData)
         elif (replyCmd == EXCEPTION):
-            print("Could not list available Drones! Exception: ", replyData)
+            print(replyData)
             return False
         else:
             print("Unexpected command recived! Packet discarted.")
@@ -78,32 +83,38 @@ class Client:
         msgData = droneIP + "_" + shippingAddress
         self._sendMessage(DELIVER, msgData)      
         
-closeConn = False
+        
+#------------  APP CLIENT  -----------
+
+quitApp = False
 
 def printCMDlist():
-    print("\n\nCMD numbers: \n" + 
+    print("CMD NUMBERS: \n" + 
           "0 -> disconnect from gateway and quit client APP \n" +
           "1 -> list available drones \n" +
-          "2 -> deliver\n\n")
+          "2 -> ask for delivery\n")
 
 client = Client()
 print("Connecting...")
 client.connectToGateway('', 51000)
 printCMDlist()
-while not closeConn: 
-    cmd = input("Insert CMD number: ")
+while not quitApp:
+    cmd = input("\nInsert CMD number: ")
+    print("\n")
     if(cmd == '0'):
-        print("Closing connection with gateway and quit APP")
+        print("Closing connection with gateway and quitting client APP.")
         client.closeConnection()
-        closeConn = True
+        quitApp = True
     elif(cmd == '1'):
-        print("Asking for available drones...")
+        print("AVAILABLE DRONES\n")
         client.getAvailableDrones()
     elif(cmd == '2'):
-        print("New deliver: ")
-        droneIP = input("specify drone IP address: ")
-        shippingAddress = input("specify shipping address: ")
+        print("NEW DELIVERY REQUEST\n")
+        droneIP = input("Please, specify drone IP address: ")
+        shippingAddress = input("Please, specify shipping address: ")
+        print("\n")
         client.deliver(shippingAddress, droneIP)
+        print("Delivery requested to drone: ", droneIP)
     elif(cmd == 'help'):
         printCMDlist()
     else:

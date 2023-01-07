@@ -52,15 +52,20 @@ class ClientHandler(Thread):
     def getStringDronesList(self):
         stringList = ""
         dronesList = self.droneDictionary.getAvailableDrones()
+        n = 1
         for drone in dronesList:
-            stringList += "DroneIP: " + str(drone[0]) + "\t\t" + str(drone[1]) + "\n"
+            port = str(drone[1].get('port'))
+            name = str(drone[1].get('name'))
+            addTime = str(drone[1].get('addTime'))
+            stringList += "N." + str(n) + "\t" + "DroneIP: " + str(drone[0]) + "\t\tPort: " + port + "\tName: " + name + "\tAvailable since: " + addTime +"\n"
+            n += 1
         return stringList
     
     def _sendDronesList(self):
         if(self.droneDictionary.hasAvailableDrones()):
             self._sendMessage(LIST_DRONES, self.getStringDronesList())
         else:
-            self._sendMessage(EXCEPTION, "There's not any available drone.")
+            self._sendMessage(EXCEPTION, "No available drones found! Retry later...")
         
     def _deliver(self, msgData):
         droneIP, shippingAdderss = msgData.split("_")

@@ -44,7 +44,7 @@ class DeliveriesRegisrty:
             timestamp = datetime.now()
             delivery = self.pendingDeliveries.pop(droneIP)
             delivery.update({'status' : self.CANCELLED})
-            self.deliverHistory.update({(droneIP, timestamp) : delivery})
+            self.deliveryHistory.update({(droneIP, timestamp) : delivery})
             return True
         return False
     
