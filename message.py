@@ -14,10 +14,10 @@ class Message:
         self.data = str(data)
 
     @classmethod
-    def fromBytes(self, msgBytes):
+    def fromBytes(cls, msgBytes):
         message = msgBytes.decode()
         args = message.split("-")
-        return Message(args[0], args[1])
+        return cls(args[0], args[1])
         
     def getCmd(self):
         return self.cmd

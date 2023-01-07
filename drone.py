@@ -1,14 +1,126 @@
-from socket import socket, AF_INET, SOCK_DGRAM
-from message import Message, AVAILABLE, BUSY, DELIVER
+from socket import socket, AF_INET, SOCK_DGRAM, SOCK_RAW, IPPROTO_RAW, IPPROTO_IP, IP_HDRINCL, timeout, inet_aton
+from message import Message, AVAILABLE, BUSY, DELIVER, UNAVAILABLE
+#from threading import Thread
+import time
+import random
+
+class NotConnectedToGateway(Exception):
+    pass
+
+class AlreadyConnectedToGateway(Exception):
+    pass
 
 class Drone:
+    RETRANSMIT_TIMEOUT_SEC = 6
+    gatewayAddress = None
     
-    def __init__(self, gatewayIP = '', gatewayPort = '', droneID = 0):
-        self.gatewayAddress = (gatewayIP, gatewayPort)
+    def __init__(self, droneName = 'Unknown'):
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.id = droneID
+        self.socket.settimeout(self.RETRANSMIT_TIMEOUT_SEC)
+        self.name = droneName
+        self.status = UNAVAILABLE
+    
+    @classmethod 
+    def withFakeIp(cls, fakeIP, droneName = 'Unknown'):
+        s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)
+        ip_header = b"\x45\x00\x00\x54\x00\x00\x40\x00\x40\x11\x00\x00" + inet_aton(fakeIP) + b"\x7f\x00\x00\x01"
+        drone = cls(droneName)
+        drone.socket = s
+        drone.header = ip_header
+        drone.fakeIP = fakeIP
+        return drone
+        
+    def isConnected(self):
+        return self.gatewayAddress != None
+        
+    def _sendMessage(self, cmd, data):
+        if(not self.isConnected()):
+            raise NotConnectedToGateway('Cannot send a message because the drone is not connected to a Gateway.')
+        try:
+            msgBytes = Message(cmd, data).getBytes()
+            if(hasattr(self, "fakeIP")):
+                self.socket.setsockopt(IPPROTO_IP, IP_HDRINCL, 1)
+                pcktData = self.header + msgBytes
+                self.socket.sendto(pcktData, self.gatewayAddress)
+            else:
+                self.socket.sendto(msgBytes, self.gatewayAddress)
+            print("Message: [", cmd, " - ", data, "] sent.")
+        except Exception as e:
+            print("Cannot send Message: [", cmd, " - ", data, "]. Exception: ", e)
+
+    def _receiveMessage(self):
+        #TO-DO stampa from/to
+        try:
+            msgBytes, addr = self.socket.recvfrom(2048)
+            print("Message received! Bytes:", msgBytes)
+            msg = Message.fromBytes(msgBytes)
+            return msg.getCmd(), msg.getData()
+        except timeout:
+            raise timeout
+        except Exception as e:
+            print("Exception!", e)
+            
+    def _deliver(self):
+        time.sleep(10*random.random())
+        self._available()
+            
+    def _waitForDelivery(self):
+        replyCmd = None
+        print("Waiting for deliveries...")
+        while(replyCmd != DELIVER):
+            try:
+                replyCmd, replyData = self._receiveMessage()
+            except timeout:
+                pass
+        print(replyCmd, " recived.")
+        self._sendMessage(BUSY, '')
+        print("Waiting for confirm...")
+        while(replyCmd != BUSY):  
+            try:
+                replyCmd, replyData = self._receiveMessage()
+            except timeout:
+                self._sendMessage(BUSY, '')
+                #retransmit... TO-DO max attempts
+        print("Confirm recived! Going to deliver!")
+        self.status = BUSY
+        self._deliver()
+    
+    def _available(self):
+        self._sendMessage(AVAILABLE, self.name)
+        replyCmd = None
+        while(replyCmd != AVAILABLE):
+            try:
+                replyCmd, replyData = self._receiveMessage()
+            except timeout:
+                self._sendMessage(AVAILABLE, self.name)
+                #retransmit... TO-DO max attempts
         self.status = AVAILABLE
+        self._waitForDelivery()
+            
+    def connectToGateway(self, gatewayIP, gatewayPort):
+        if(self.isConnected()):
+            raise AlreadyConnectedToGateway('The drone is already connected. Disconnect first in order to change gateway.')
+        self.gatewayAddress = (gatewayIP, gatewayPort)
+        self._available()
+        print("Succesfully connected!")
         
-    def sendToGateway(self, message):
-        self.socket.sendto(message.encode(), self.gatewayAddress)
-        
+    def disconnectFromGateway(self):
+        if(not self.isConnected()):
+            raise NotConnectedToGateway('Unable to disconnect the drone since is not connected to any gateway.')
+        self.gatewayAddress = None
+        self.status = UNAVAILABLE
+
+gatewayIP = ''
+gatewayPort = 50000
+
+def connectFakeDrone(fakeIP, droneName = 'Unknown'):
+    drone = Drone.withFakeIp(fakeIP, droneName)
+    drone.connectToGateway(gatewayIP, gatewayPort)
+
+#th1 = Thread(target = connectFakeDrone, args = ('1.2.3.1', 'Fake01'))
+#th1.start()
+#th2 = Thread(target = connectFakeDrone, args = ('1.2.3.2', 'Fake02'))
+#th2.start()
+drone = Drone("Alessandro's Drone")
+drone.connectToGateway('', 50000)
+    

@@ -1,5 +1,5 @@
 from queue import Queue
-import datetime
+from datetime import datetime
 
 class DeliveriesRegisrty:
     REQUESTED = 'REQUESTED'
@@ -10,8 +10,11 @@ class DeliveriesRegisrty:
     deliveryHistory = {}
     newRequests = Queue(0)
     
+    def hasPendingDelivery(self, droneIP):
+        return self.pendingDeliveries.get(droneIP) != None
+    
     def requestDelivery(self, droneIP, shippingAddress):
-        if(self.pendingDeliveries.has_key(droneIP)):
+        if(self.hasPendingDelivery(droneIP)):
             return False
         timestamp = datetime.now()
         self.pendingDeliveries[droneIP] = {'status' : self.REQUESTED, 'shippingAddress' : shippingAddress, 'requested' : timestamp}
@@ -19,27 +22,25 @@ class DeliveriesRegisrty:
         return True
         
     def delivering(self, droneIP):
-        if(self.pendingDeliveries.has_key(droneIP)):
+        if(self.hasPendingDelivery(droneIP)):
             timestamp = datetime.now()
             delivery = self.pendingDeliveries.get(droneIP)
             delivery.update({'status' : self.DELIVERING, 'delivering' : timestamp})
             self.pendingDeliveries.update({droneIP : delivery})
-            if(self.newReq > 0):
-                self.newReq -= 1
             return True
         return False
     
     def delivered(self, droneIP):
-        if(self.pendingDeliveries.has_key(droneIP)):
+        if(self.hasPendingDelivery(droneIP)):
             timestamp = datetime.now()
             delivery = self.pendingDeliveries.pop(droneIP)
             delivery.update({'status' : self.DELIVERED})
-            self.deliverHistory.update({(droneIP, timestamp) : delivery})
+            self.deliveryHistory.update({(droneIP, timestamp) : delivery})
             return True
         return False
    
     def cancelled(self, droneIP):
-        if(self.pendingDeliveries.has_key(droneIP)):
+        if(self.hasPendingDelivery(droneIP)):
             timestamp = datetime.now()
             delivery = self.pendingDeliveries.pop(droneIP)
             delivery.update({'status' : self.CANCELLED})
@@ -53,6 +54,3 @@ class DeliveriesRegisrty:
     def getNextRequest(self):
         droneIP = self.newRequests.get()
         return (droneIP, self.pendingDeliveries.get(droneIP))
-
-    def hasPendingDelivery(self, droneIP):
-        return self.pendingDeliveries.has_key(droneIP)

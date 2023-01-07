@@ -25,7 +25,7 @@ class Client:
         #TO-DO implement try send CLOSE_CONN and then close, else if already disconnected close socket
         self.clientSocket.close()
         
-    def connect(self, serverName, serverPort):
+    def connectToGateway(self, serverName, serverPort):
         print("Creating socket and request connection to {} TCP server...".format(serverName))
         try:
             self.clientSocket = socket(AF_INET, SOCK_STREAM)
@@ -78,7 +78,33 @@ class Client:
         msgData = droneIP + "_" + shippingAddress
         self._sendMessage(DELIVER, msgData)      
         
+closeConn = False
+
+def printCMDlist():
+    print("\n\nCMD numbers: \n" + 
+          "0 -> disconnect from gateway and quit client APP \n" +
+          "1 -> list available drones \n" +
+          "2 -> deliver\n\n")
+
 client = Client()
-client.connect('', 51000)
-client.getAvailableDrones()
-client.closeConnection()
+print("Connecting...")
+client.connectToGateway('', 51000)
+printCMDlist()
+while not closeConn: 
+    cmd = input("Insert CMD number: ")
+    if(cmd == '0'):
+        print("Closing connection with gateway and quit APP")
+        client.closeConnection()
+        closeConn = True
+    elif(cmd == '1'):
+        print("Asking for available drones...")
+        client.getAvailableDrones()
+    elif(cmd == '2'):
+        print("New deliver: ")
+        droneIP = input("specify drone IP address: ")
+        shippingAddress = input("specify shipping address: ")
+        client.deliver(shippingAddress, droneIP)
+    elif(cmd == 'help'):
+        printCMDlist()
+    else:
+        print("Unknown CMD number, type 'help' for CMDs list")

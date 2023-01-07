@@ -53,7 +53,8 @@ class ClientHandler(Thread):
         stringList = ""
         dronesList = self.droneDictionary.getAvailableDrones()
         for drone in dronesList:
-            stringList += "DroneIP: " + drone[0] + "\t\t" + drone[1] + "\n"
+            stringList += "DroneIP: " + str(drone[0]) + "\t\t" + str(drone[1]) + "\n"
+        return stringList
     
     def _sendDronesList(self):
         if(self.droneDictionary.hasAvailableDrones()):

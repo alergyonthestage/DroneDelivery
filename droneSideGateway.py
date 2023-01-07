@@ -7,6 +7,7 @@ import time
 
 SOCKET_timeoutTime_SEC = 2
 RETRANSMIT_TIMEOUT_SEC = 4
+RETRANSMIT_MAX_ATTEMPTS = 3
 
 class RetransmitTimer(Thread):
     stopped = False
@@ -37,13 +38,28 @@ class SocketOperator(Thread):
         self.toSendQueue = toSendQueue
         self.deliverMsgTimers = deliverMsgTimers
         
+    def _attemptsOver(self, droneIP):
+        if(self.deliverMsgTimers.get(droneIP) != None):
+            return RETRANSMIT_MAX_ATTEMPTS >=(self.deliverMsgTimers.get(droneIP)[1])
+        return False
+        
+    def _scheduleRetransmit(self, cmd, data, droneAddress):
+        retransmitTimer = RetransmitTimer((cmd, data, droneAddress), RETRANSMIT_TIMEOUT_SEC, self.toSendQueue)
+        retransmitTimer.start()
+        if(self.deliverMsgTimers.get(droneAddress[0]) != None):
+            attempts = (self.deliverMsgTimers.get(droneAddress[0])[1])+1
+        else:
+            attempts = 1
+        self.deliverMsgTimers[droneAddress[0]] = (retransmitTimer, attempts)
+        
     def _sendMsgToDrone(self, cmd, data, droneAddress):
         try:
             self.udpSocket.sendto(Message(cmd, data).getBytes(), droneAddress)
             if(cmd == DELIVER):
-                retransmitTimer = RetransmitTimer((cmd, data, droneAddress), RETRANSMIT_TIMEOUT_SEC, self.toSendQueue)
-                retransmitTimer.start()
-                self.deliverMsgTimers[droneAddress[0]] = retransmitTimer
+                if(self._attemptsOver(droneAddress[0])):
+                    print("Retransmit attempts over. Cannot communicate with drone: ", droneAddress[0])
+                else:
+                    self._scheduleRetransmit(cmd, data, droneAddress)
             print("Message: [", cmd, " - ", data, "] sent to ", droneAddress)
         except Exception as e:
             print("Cannot send Message: [", cmd, " - ", data, "] to ", droneAddress, ". Exception: ", e)
@@ -81,10 +97,13 @@ class DroneMsgsHandler(Thread):
         
     def _availableDrone(self, droneIP, dronePort, droneName):
         if(self.droneDictionary.isDroneUnavailable(droneIP)):
+            print("NEW DRONE")
             self.droneDictionary.addAvailableDrone(droneIP, droneName, dronePort)
         else: #if drone was already present in dicrionary
             if(self.droneDictionary.isDroneBusy(droneIP)):
+                print("CONSEGNA FATTA")
                 self.droneDictionary.moveToAvailableDrones(droneIP)
+                self.deliveriesRegister.delivered(droneIP)
             self.droneDictionary.updateDroneInfos(droneIP, dronePort, droneName)
         self.toSendQueue.put((AVAILABLE, '', (droneIP, dronePort)))
         
@@ -99,8 +118,8 @@ class DroneMsgsHandler(Thread):
     
     def _busyDrone(self, droneIP, dronePort):
         if(self.deliveriesRegister.hasPendingDelivery(droneIP)):
-            if(self.deliverMsgTimers.has_Key(droneIP)):
-                self.deliverMsgTimers.stop()
+            if(self.deliverMsgTimers.get(droneIP) != None):
+                self.deliverMsgTimers.get(droneIP)[0].stop()
                 if(self.droneDictionary.isDroneAvailable(droneIP)):
                     self.droneDictionary.moveToBusyDrones(droneIP)
                     self.toSendQueue.put((BUSY, '', (droneIP, dronePort)))
@@ -118,7 +137,7 @@ class DroneMsgsHandler(Thread):
     def _requestDelivery(self):
         droneIP, request = self.deliveriesRegister.getNextRequest()
         if(self.droneDictionary.isDroneAvailable(droneIP)):
-            dronePort = self.droneDictionary.getAvailableDroneInfos(droneIP)
+            dronePort = self.droneDictionary.getAvailableDroneInfos(droneIP).get('port')
             self.toSendQueue.put((DELIVER, request.get('shippingAddress'), (droneIP, dronePort)))
         else:
             self.deliveriesRegister.cancelled(droneIP)
@@ -133,7 +152,7 @@ class DroneMsgsHandler(Thread):
                 elif(cmd == UNAVAILABLE):
                     self._unavailableDrone(addr[0], addr[1])
                 elif(cmd == BUSY):
-                    pass
+                    self._busyDrone(addr[0], addr[1])
             if(self.deliveriesRegister.hasNewRequests()):
                 self._requestDelivery()
 

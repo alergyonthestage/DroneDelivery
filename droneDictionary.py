@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 
 class DroneDictionary:
     availableDrones = {}
@@ -17,13 +17,13 @@ class DroneDictionary:
         return self.busyDrones.get(droneIP)
     
     def isDroneBusy(self, droneIP):
-        return self.busyDrones.has_Key(droneIP)
+        return self.getBusyDroneInfos(droneIP) != None
     
     def isDroneAvailable(self, droneIP):
-        return self.availableDrones.has_Key(droneIP)
+        return self.getAvailableDroneInfos(droneIP) != None
     
     def isDroneUnavailable(self, droneIP):
-        return not self.isDroneBusy() and not self.isDroneAvailable()
+        return not self.isDroneBusy(droneIP) and not self.isDroneAvailable(droneIP)
     
     def addAvailableDrone(self, droneIP, droneName, dronePort):
         if(self.isDroneUnavailable(droneIP)):
@@ -36,7 +36,7 @@ class DroneDictionary:
         return self.availableDrones.pop(droneIP)
     
     def moveToBusyDrones(self, droneIP):
-        if(self.isDroneAvailable()):
+        if(self.isDroneAvailable(droneIP)):
             drone = self.availableDrones.pop(droneIP)
             drone.update({'addTime' : datetime.now()})
             self.busyDrones.update({droneIP : drone})
@@ -44,7 +44,7 @@ class DroneDictionary:
         return False
         
     def moveToAvailableDrones(self, droneIP):
-        if(self.isDroneBusy()):
+        if(self.isDroneBusy(droneIP)):
             drone = self.busyDrones.pop(droneIP)
             drone.update({'addTime' : datetime.now()})
             self.availableDrones.update({droneIP : drone})
