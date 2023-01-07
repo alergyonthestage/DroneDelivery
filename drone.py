@@ -1,8 +1,10 @@
 from socket import socket, AF_INET, SOCK_DGRAM, SOCK_RAW, IPPROTO_RAW, IPPROTO_IP, IP_HDRINCL, timeout, inet_aton
 from message import Message, AVAILABLE, BUSY, DELIVER, UNAVAILABLE
-#from threading import Thread
+from threading import Thread
 import time
 import random
+
+DEBUG = False
 
 class NotConnectedToGateway(Exception):
     pass
@@ -34,6 +36,8 @@ class Drone:
         return self.gatewayAddress != None
         
     def _sendMessage(self, cmd, data):
+        if(DEBUG):
+            print("DEBUG - Sending MSG to gateway...")
         if(not self.isConnected()):
             raise NotConnectedToGateway('Cannot send a message because the drone is not connected to a Gateway.')
         try:
@@ -44,44 +48,50 @@ class Drone:
                 self.socket.sendto(pcktData, self.gatewayAddress)
             else:
                 self.socket.sendto(msgBytes, self.gatewayAddress)
-            print("Message: [", cmd, " - ", data, "] sent.")
+            if(DEBUG):
+                print("DEBUG - MSG: '", cmd, " - ", data, "' sent to gateway")
         except Exception as e:
             print("Cannot send Message: [", cmd, " - ", data, "]. Exception: ", e)
 
     def _receiveMessage(self):
-        #TO-DO stampa from/to
+        if(DEBUG):
+            print("DEBUG - Reciving MSG from gateway...")
         try:
             msgBytes, addr = self.socket.recvfrom(2048)
-            print("Message received! Bytes:", msgBytes)
             msg = Message.fromBytes(msgBytes)
+            if(DEBUG):
+                print("DEBUG - MSG: '", msg.getCmd(), " - ", msg.getData(), "' recived from gateway")
             return msg.getCmd(), msg.getData()
         except timeout:
             raise timeout
         except Exception as e:
-            print("Exception!", e)
+            print("Cannot recive Messages. Exception: ", e)
             
     def _deliver(self):
-        time.sleep(10*random.random())
+        deliveryTime = 10*random.random()
+        print("Delivery will take ", deliveryTime, "seconds.\n")
+        time.sleep(deliveryTime)
+        print("DELIVERED!\n")
         self._available()
             
     def _waitForDelivery(self):
         replyCmd = None
-        print("Waiting for deliveries...")
+        print("Waiting for deliveries...\n")
         while(replyCmd != DELIVER):
             try:
                 replyCmd, replyData = self._receiveMessage()
             except timeout:
                 pass
-        print(replyCmd, " recived.")
         self._sendMessage(BUSY, '')
-        print("Waiting for confirm...")
+        print("Delivery request recived. Shipping address: ", replyData)
+        print("Accepted! Waiting for the gateway to confirm...\n")
         while(replyCmd != BUSY):  
             try:
                 replyCmd, replyData = self._receiveMessage()
             except timeout:
                 self._sendMessage(BUSY, '')
                 #retransmit... TO-DO max attempts
-        print("Confirm recived! Going to deliver!")
+        print("Confirm recived! Going to deliver... Now I'm BUSY")
         self.status = BUSY
         self._deliver()
     
@@ -95,23 +105,42 @@ class Drone:
                 self._sendMessage(AVAILABLE, self.name)
                 #retransmit... TO-DO max attempts
         self.status = AVAILABLE
+        print("Status: AVAILABLE")
         self._waitForDelivery()
             
     def connectToGateway(self, gatewayIP, gatewayPort):
+        print("Connecting to gateway...")
         if(self.isConnected()):
             raise AlreadyConnectedToGateway('The drone is already connected. Disconnect first in order to change gateway.')
         self.gatewayAddress = (gatewayIP, gatewayPort)
+        print("Succesfully connected to gateway. Gateway IP: ", gatewayIP, "; Gateway Port: ", gatewayPort)
+        print("Making drone available to gateway... \n\n")
         self._available()
-        print("Succesfully connected!")
         
     def disconnectFromGateway(self):
         if(not self.isConnected()):
             raise NotConnectedToGateway('Unable to disconnect the drone since is not connected to any gateway.')
+        if(self.status == BUSY):
+            print("Cannot disconnect from gateway. Now I'm BUSY")
+            return
+        self._sendMessage(UNAVAILABLE, '')
+        replyCmd = None
+        while(replyCmd != AVAILABLE or replyCmd != BUSY):
+            try:
+                replyCmd, replyData = self._receiveMessage()
+            except timeout:
+                self._sendMessage(AVAILABLE, self.name)
+                #retransmit... TO-DO max attempts
+        if(replyCmd == BUSY):
+            print("Something get wrong: i'm BUSY for the gateway, but in realty i'm Available. \nCannot disconnect now, retry later...")
+            return
         self.gatewayAddress = None
         self.status = UNAVAILABLE
+        print("Disconnected from gateway!")
 
 gatewayIP = ''
 gatewayPort = 50000
+    
 
 def connectFakeDrone(fakeIP, droneName = 'Unknown'):
     drone = Drone.withFakeIp(fakeIP, droneName)

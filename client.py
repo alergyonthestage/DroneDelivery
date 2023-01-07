@@ -93,10 +93,13 @@ def printCMDlist():
           "0 -> disconnect from gateway and quit client APP \n" +
           "1 -> list available drones \n" +
           "2 -> ask for delivery\n")
-
+    
+print("Preparing to connect to gateway...\n")
 client = Client()
-print("Connecting...")
-client.connectToGateway('', 51000)
+gwIP = ''
+gwPort = 51000
+print("\nConnecting to gateway...")
+client.connectToGateway(gwIP, gwPort)
 printCMDlist()
 while not quitApp:
     cmd = input("\nInsert CMD number: ")

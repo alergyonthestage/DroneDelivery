@@ -25,17 +25,17 @@ class ClientHandler(Thread):
         try:
             msgBytes = Message(cmd, data).getBytes()
             self.connectionSocket.send(msgBytes)
-            print("Message: [", cmd, " - ", data, "] sent.")
+            print("\nMessage: [", cmd, " - ", data, "] sent from gateway (", self.connectionSocket.getsockname() ,") to client (", self.connectionSocket.getpeername(), ")\n")
         except Exception as e:
-            print("Exception!", e)
+            print("Cannot send message to gateway. Exception:", e)
             
     def _receiveMessage(self):
         try:
             msg = Message.fromBytes(self.connectionSocket.recv(2048))
-            print("New message recived: ", msg.getCmd(), " - ", msg.getData())
+            print("\nMessage [", msg.getCmd(), " - ", msg.getData(), "] recived from client (", self.connectionSocket.getpeername(), ") to gateway (", self.connectionSocket.getsockname(), "\n")
             return msg.getCmd(), msg.getData()
         except Exception as e:
-            print("Exception!", e)
+            print("Cannot receive Messages from client. Exception:", e)
             
     def _canDisconnectClient(self):
         return True
@@ -94,7 +94,7 @@ class ClientSideGateway:
             self.handshakeSocket = socket(AF_INET, SOCK_STREAM)
             self.handshakeSocket.bind((serverAddress, serverPort))
             self.handshakeSocket.listen(1)
-            print("Handshake socket created, all requests will be added to queue.")
+            print("TCP Handshake socket created.")
         except Exception as e:
             print("Exception!", e) 
             
@@ -108,9 +108,9 @@ class ClientSideGateway:
 
     def handleClient(self):
         if(self.clientHandler != None):
-            raise AnotherClientConnected('The gateway can only handle one client at a time.')
+            raise AnotherClientConnected('Another client is already connected. The gateway can only handle one client at a time.')
         else:
-            print("Waiting for a TCP client request!")
+            print("Waiting for a client request!")
             connectionSocket, address = self.handshakeSocket.accept()
             confirmed = self._confirmClientConnection(address)
             self.clientHandler = ClientHandler(connectionSocket, confirmed, self.deliveriesRegister, self.droneDictionary)
