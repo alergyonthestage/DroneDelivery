@@ -31,7 +31,7 @@ class ClientHandler(Thread):
         
     def _receiveMessage(self):
         try:
-            msg = Message.fromBytes(self.connectionSocket.recv(2048))
+            msg = Message.fromBytes(self.connectionSocket.recv(1024))
             print("\nMessage [", msg.getCmd(), " - ", msg.getData(), "] recived from client ", self.connectionSocket.getpeername(), " to gateway ", self.connectionSocket.getsockname(), ".\n")
             return msg.getCmd(), msg.getData()
         except Exception as e:

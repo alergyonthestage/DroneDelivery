@@ -66,7 +66,7 @@ class SocketOperator(Thread):
             
     def _receiveMsgFromDrones(self):
         try:
-            data, address = self.udpSocket.recvfrom(2048)
+            data, address = self.udpSocket.recvfrom(1024)
             msg = Message.fromBytes(data)
             print("\nMessage [", msg.getCmd(), " - ", msg.getData(), "] recived from drone ", address, " to gateway ", self.udpSocket.getsockname(), ".\n")
             return msg.getCmd(), msg.getData(), address

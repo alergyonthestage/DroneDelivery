@@ -64,7 +64,7 @@ class Drone:
         if(DEBUG):
             print("DEBUG - Reciving MSG from gateway...")
         try:
-            msgBytes, addr = self.socket.recvfrom(2048)
+            msgBytes, addr = self.socket.recvfrom(1024)
             if(addr != self.gatewayAddress):
                 raise MsgFromUnknownGateway('The received message is from an unknown gateway.')
             msg = Message.fromBytes(msgBytes)

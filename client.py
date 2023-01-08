@@ -19,7 +19,7 @@ class Client:
         if(DEBUG):
             print("DEBUG - Reciving MSG from gateway...")
         try:
-            msgBytes = self.clientSocket.recv(2048)
+            msgBytes = self.clientSocket.recv(1024)
             msg = Message.fromBytes(msgBytes)
             if(DEBUG):
                 print("DEBUG - MSG: '", msg.getCmd(), " - ", msg.getData(), "' recived from gateway")
