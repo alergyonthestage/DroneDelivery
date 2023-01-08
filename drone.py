@@ -69,7 +69,7 @@ class Drone:
                 raise MsgFromUnknownGateway('The received message is from an unknown gateway.')
             msg = Message.fromBytes(msgBytes)
             if(DEBUG):
-                print("DEBUG - MSG: '", msg.getCmd(), " - ", msg.getData(), "' recived from gateway")
+                print("DEBUG - MSG: '", msg.getCmd(), " - ", msg.getData(), "' recived from gateway ", addr)
             return msg.getCmd(), msg.getData()
         except timeout:
             raise timeout
