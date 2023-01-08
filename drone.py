@@ -12,6 +12,9 @@ class NotConnectedToGateway(Exception):
 class AlreadyConnectedToGateway(Exception):
     pass
 
+class MsgFromUnknownGateway(Exception):
+    pass
+
 class Drone:
     RETRANSMIT_TIMEOUT_SEC = 6
     RETRANSMIT_MAX_ATTEMPTS = 3
@@ -62,6 +65,8 @@ class Drone:
             print("DEBUG - Reciving MSG from gateway...")
         try:
             msgBytes, addr = self.socket.recvfrom(2048)
+            if(addr != self.gatewayAddress):
+                raise MsgFromUnknownGateway('The received message is from an unknown gateway.')
             msg = Message.fromBytes(msgBytes)
             if(DEBUG):
                 print("DEBUG - MSG: '", msg.getCmd(), " - ", msg.getData(), "' recived from gateway")
@@ -125,6 +130,8 @@ class Drone:
         print("Connecting to gateway...")
         if(self.isConnected()):
             raise AlreadyConnectedToGateway('The drone is already connected. Disconnect first in order to change gateway.')
+        if(gatewayIP.isspace() or len(gatewayIP) == 0):
+            gatewayIP = '127.0.0.1'
         self.gatewayAddress = (gatewayIP, gatewayPort)
         print("Succesfully connected to gateway. Gateway IP: ", gatewayIP, "; Gateway Port: ", gatewayPort)
         print("Making drone available to gateway... \n\n")
