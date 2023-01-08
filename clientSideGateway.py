@@ -25,14 +25,14 @@ class ClientHandler(Thread):
         try:
             msgBytes = Message(cmd, data).getBytes()
             self.connectionSocket.send(msgBytes)
-            print("\nMessage: [", cmd, " - ", data, "] sent from gateway (", self.connectionSocket.getsockname() ,") to client (", self.connectionSocket.getpeername(), ")\n")
+            print("\nMessage [", cmd, " - ", data, "] sent from gateway ", self.connectionSocket.getsockname() ," to client ", self.connectionSocket.getpeername(), "\n")
         except Exception as e:
-            print("Cannot send message to gateway. Exception:", e)
-            
+            print("Cannot send Message [", cmd, " - ", data, "] to gateway. Exception:", e)
+        
     def _receiveMessage(self):
         try:
             msg = Message.fromBytes(self.connectionSocket.recv(2048))
-            print("\nMessage [", msg.getCmd(), " - ", msg.getData(), "] recived from client (", self.connectionSocket.getpeername(), ") to gateway (", self.connectionSocket.getsockname(), "\n")
+            print("\nMessage [", msg.getCmd(), " - ", msg.getData(), "] recived from client ", self.connectionSocket.getpeername(), " to gateway ", self.connectionSocket.getsockname(), ".\n")
             return msg.getCmd(), msg.getData()
         except Exception as e:
             print("Cannot receive Messages from client. Exception:", e)
@@ -62,6 +62,7 @@ class ClientHandler(Thread):
         return stringList
     
     def _sendDronesList(self):
+        print("DRONE LIST REQUEST")
         if(self.droneDictionary.hasAvailableDrones()):
             self._sendMessage(LIST_DRONES, self.getStringDronesList())
         else:
@@ -99,7 +100,7 @@ class ClientSideGateway:
             print("Exception!", e) 
             
     def _confirmClientConnection(self, address):
-        print("Il client {} sta richiedendo la connessione.".format(address))
+        print("\nIl client {} sta richiedendo la connessione.".format(address))
         choice = input("Accettare la connessione? [Y/N] ")
         if choice.lower() == "y":
             return True

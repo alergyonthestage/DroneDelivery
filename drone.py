@@ -1,6 +1,6 @@
 from socket import socket, AF_INET, SOCK_DGRAM, SOCK_RAW, IPPROTO_RAW, IPPROTO_IP, IP_HDRINCL, timeout, inet_aton
 from message import Message, AVAILABLE, BUSY, DELIVER, UNAVAILABLE
-from threading import Thread
+#from threading import Thread
 import time
 import random
 
@@ -69,7 +69,7 @@ class Drone:
             
     def _deliver(self):
         deliveryTime = 10*random.random()
-        print("Delivery will take ", deliveryTime, "seconds.\n")
+        print("Delivery will take {:.1f} seconds.\n".format(deliveryTime))
         time.sleep(deliveryTime)
         print("DELIVERED!\n")
         self._available()
@@ -125,11 +125,11 @@ class Drone:
             return
         self._sendMessage(UNAVAILABLE, '')
         replyCmd = None
-        while(replyCmd != AVAILABLE or replyCmd != BUSY):
+        while(replyCmd != UNAVAILABLE or replyCmd != BUSY):
             try:
                 replyCmd, replyData = self._receiveMessage()
             except timeout:
-                self._sendMessage(AVAILABLE, self.name)
+                self._sendMessage(UNAVAILABLE, '')
                 #retransmit... TO-DO max attempts
         if(replyCmd == BUSY):
             print("Something get wrong: i'm BUSY for the gateway, but in realty i'm Available. \nCannot disconnect now, retry later...")

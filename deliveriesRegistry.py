@@ -13,6 +13,15 @@ class DeliveriesRegisrty:
     def hasPendingDelivery(self, droneIP):
         return self.pendingDeliveries.get(droneIP) != None
     
+    def getPendingDeliveryInfos(self, droneIP):
+        if(self.hasPendingDelivery(droneIP)):
+            return self.pendingDeliveries.get(droneIP)
+        else:
+            return None
+        
+    def getDeliveryInfos(self, droneIP, deliveryTimestamp):
+        return self.deliveryHistory.get((droneIP, deliveryTimestamp))
+    
     def requestDelivery(self, droneIP, shippingAddress):
         if(self.hasPendingDelivery(droneIP)):
             return False
