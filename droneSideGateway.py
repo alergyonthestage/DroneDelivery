@@ -38,9 +38,9 @@ class SocketOperator(Thread):
         self.toSendQueue = toSendQueue
         self.deliverMsgTimers = deliverMsgTimers
         
-    def _attemptsOver(self, droneIP):
+    def _maxAttemptsReached(self, droneIP):
         if(self.deliverMsgTimers.get(droneIP) != None):
-            return RETRANSMIT_MAX_ATTEMPTS >=(self.deliverMsgTimers.get(droneIP)[1])
+            return RETRANSMIT_MAX_ATTEMPTS < (self.deliverMsgTimers.get(droneIP)[1])
         return False
         
     def _scheduleRetransmit(self, cmd, data, droneAddress):
@@ -57,7 +57,7 @@ class SocketOperator(Thread):
             self.udpSocket.sendto(Message(cmd, data).getBytes(), droneAddress)
             print("\nMessage [", cmd, " - ", data, "] sent from gateway ", self.udpSocket.getsockname() ," to drone ", droneAddress, "\n")
             if(cmd == DELIVER):
-                if(self._attemptsOver(droneAddress[0])):
+                if(self._maxAttemptsReached(droneAddress[0])):
                     print("Retransmit attempts over. Cannot communicate with drone ", droneAddress, ".")
                 else:
                     self._scheduleRetransmit(cmd, data, droneAddress)

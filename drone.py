@@ -14,6 +14,7 @@ class AlreadyConnectedToGateway(Exception):
 
 class Drone:
     RETRANSMIT_TIMEOUT_SEC = 6
+    RETRANSMIT_MAX_ATTEMPTS = 3
     gatewayAddress = None
     
     def __init__(self, droneName = 'Unknown'):
@@ -34,6 +35,9 @@ class Drone:
         
     def isConnected(self):
         return self.gatewayAddress != None
+    
+    def _maxAttemptsReached(self, currentAttempts):
+        return currentAttempts > self.RETRANSMIT_MAX_ATTEMPTS
         
     def _sendMessage(self, cmd, data):
         if(DEBUG):
@@ -85,12 +89,17 @@ class Drone:
         self._sendMessage(BUSY, '')
         print("Delivery request recived. Shipping address: ", replyData)
         print("Accepted! Waiting for the gateway to confirm...\n")
-        while(replyCmd != BUSY):  
+        attempts = 1
+        replyCmd = None
+        while(replyCmd != BUSY and not self._maxAttemptsReached(attempts)):  
             try:
                 replyCmd, replyData = self._receiveMessage()
-            except timeout:
+            except timeout: 
                 self._sendMessage(BUSY, '')
-                #retransmit... TO-DO max attempts
+                attempts += 1
+        if(self._maxAttemptsReached(attempts)):
+            print("Cannot communicate with gateway. Please, try restarting the drone app!")
+            return
         print("Confirm recived! Going to deliver... Now I'm BUSY")
         self.status = BUSY
         self._deliver()
@@ -98,12 +107,16 @@ class Drone:
     def _available(self):
         self._sendMessage(AVAILABLE, self.name)
         replyCmd = None
-        while(replyCmd != AVAILABLE):
+        attempts = 1
+        while(replyCmd != AVAILABLE and not self._maxAttemptsReached(attempts)):
             try:
                 replyCmd, replyData = self._receiveMessage()
             except timeout:
                 self._sendMessage(AVAILABLE, self.name)
-                #retransmit... TO-DO max attempts
+                attempts += 1
+        if(self._maxAttemptsReached(attempts)):
+            print("Cannot communicate with gateway. Please, try restarting the drone app!")
+            return
         self.status = AVAILABLE
         print("Status: AVAILABLE")
         self._waitForDelivery()
@@ -124,13 +137,17 @@ class Drone:
             print("Cannot disconnect from gateway. Now I'm BUSY")
             return
         self._sendMessage(UNAVAILABLE, '')
+        attempts = 1
         replyCmd = None
-        while(replyCmd != UNAVAILABLE or replyCmd != BUSY):
+        while((replyCmd != UNAVAILABLE or replyCmd != BUSY) and not self._maxAttemptsReached(attempts)):
             try:
                 replyCmd, replyData = self._receiveMessage()
             except timeout:
                 self._sendMessage(UNAVAILABLE, '')
-                #retransmit... TO-DO max attempts
+                attempts += 1
+        if(self._maxAttemptsReached(attempts)):
+            print("Cannot communicate with gateway. Please, try restarting the drone app!")
+            return
         if(replyCmd == BUSY):
             print("Something get wrong: i'm BUSY for the gateway, but in realty i'm Available. \nCannot disconnect now, retry later...")
             return
